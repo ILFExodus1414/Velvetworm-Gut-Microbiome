@@ -1,0 +1,183 @@
+---
+title: "QIIME2 Scripts"
+author: "ILF"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+> This document preserves shell scripts as **Bash** chunks with `eval=FALSE` so it will knit to PDF/HTML without executing commands. Run these in a terminal (or switch `eval=TRUE` if you really want to execute at knit time).
+
+# Raw Illumina reads were first demultiplexed in QIIME2, separating sequences by unique barcode identifiers to ensure correct assignment of forward and reverse reads to individual samples. Primer and adapter sequences were then removed from the demultiplexed reads using Cutadapt (Martin,2011), retaining only biological sequences for downstream quality filtering.
+
+# 01. Cutadapt (Linux) — Remove primers
+
+```{bash, eval=FALSE}
+mkdir -p logs/01-trimmed
+mkdir -p 01-trimmed
+
+for item in 00-raw/*_R1.fq.gz
+do
+    filestem=$(basename "$item" _R1.fq.gz)
+    R1=00-raw/${filestem}_R1.fq.gz
+    R2=00-raw/${filestem}_R2.fq.gz
+
+    cutadapt --no-indels --pair-filter=any --error-rate=0.2 \
+      -g ^GTGYCAGCMGCCGCGGTAA -G ^CCGYCAATTYMTTTRAGTTT \
+      -o 01-trimmed/${filestem}.R1.trimmed.fastq \
+      -p 01-trimmed/${filestem}.R2.trimmed.fastq \
+      "$R1" "$R2" \
+      2>&1 | tee -a logs/01-trimmed/${filestem}.cutadapt.log
+done
+```
+
+# 02. BBsplit — Optional separation of 16S and 18S reads (Bushnell, 2018)
+
+```{bash, eval=FALSE}
+mkdir -p 02-PROKs/00-fastq 02-EUKs/00-fastq logs/02-bbsplit
+
+for item in 01-trimmed/*.R1.trimmed.fastq
+do
+    filestem=$(basename "$item" .R1.trimmed.fastq)
+    R1in=01-trimmed/${filestem}.R1.trimmed.fastq
+    R2in=01-trimmed/${filestem}.R2.trimmed.fastq
+
+    /path/to/bbmap/bbsplit.sh \
+      usequality=f qtrim=f minratio=0.30 minid=0.30 pairedonly=f threads=20 -Xmx100g \
+      path=/path/to/EUK-PROK-bbsplit-db/ \
+      in="$R1in" in2="$R2in" basename=${filestem}.trimmed.%_.fastq \
+      2>&1 | tee -a logs/02-bbsplit/$filestem.bbsplit.log
+done
+
+# Move bbsplit-labeled outputs
+mv *EUK*fastq 02-EUKs/00-fastq || true
+mv *PROK*fastq 02-PROKs/00-fastq || true
+```
+
+# P00. Create Manifest
+
+The sequences are imported using **sample manifest format**, a CSV mapping sample IDs to absolute paths and read direction.
+
+```{bash, eval=FALSE}
+# Remove empty files
+find ./00-fastq -type f -size 0 -print0 | xargs -0 -r rm --
+
+# The bit to cut from filenames, leaving only the sample name
+cutME="trimmed.SILVA_132_PROK.cdhit95pc_1.fastq"
+
+for item in 00-fastq/*1.fastq; do
+  basename "$item" "$cutME" | sed 's/_/-/g'
+done > names
+
+for item in 00-fastq/*1.fastq; do printf "%s/%s\n" "$PWD" "$item"; done > reads
+for item in 00-fastq/*2.fastq; do printf "%s/%s\n" "$PWD" "$item"; done >> reads
+
+for item in 00-fastq/*1.fastq; do printf "forward\n"; done > direction
+for item in 00-fastq/*2.fastq; do printf "reverse\n"; done >> direction
+
+printf "sample-id,absolute-filepath,direction\n" > manifest.csv
+paste -d, names reads direction >> manifest.csv
+rm names reads direction
+```
+
+# P01. Import sequences into a QIIME2 artifact (manifest method)
+
+```{bash, eval=FALSE}
+qiime tools import \
+  --type 'SampleData[PairedEndSequencesWithQuality]' \
+  --input-path manifest.csv \
+  --output-path 16s.qza \
+  --input-format PairedEndFastqManifestPhred33V2
+```
+
+# P02. Visualize quality (R1/R2)
+
+The `qiime demux summarize` function is used to inspect quantity/quality and sequencing depth.
+
+```{bash, eval=FALSE}
+mkdir -p 02-quality-plots-R1-R2
+qiime demux summarize \
+  --i-data 16s.qza \
+  --o-visualization 02-quality-plots-R1-R2/demux-summary.qzv \
+  --verbose
+```
+
+# P03. DADA2 — Paired-end
+
+#Samples should be demultiplexed and primers removed before this step. DADA2 models error rates and outputs ASVs.Sequence quality control, error correction, chimera removal, and the generation of amplicon sequence variants (ASVs) were subsequently performed using the DADA2 plugin in QIIME2, which applies a parametric error model to resolve true biological sequences from sequencing errors.
+
+```{bash, eval=FALSE}
+mkdir -p logs/03-DADA2 03-DADA2d
+
+# Set from your quality plots
+trunclenf=210
+trunclenr=194
+
+echo "DADA2 truncation length for forward reads = ${trunclenf} bp" >> DADA2_trunclengths.txt
+echo "DADA2 truncation length for reverse reads = ${trunclenr} bp" >> DADA2_trunclengths.txt
+
+qiime dada2 denoise-paired \
+  --i-demultiplexed-seqs 16s.qza \
+  --p-trim-left-f 0 \
+  --p-trim-left-r 0 \
+  --p-trunc-len-f $trunclenf \
+  --p-trunc-len-r $trunclenr \
+  --p-n-threads 10 \
+  --o-table 03-DADA2d/table.qza \
+  --o-representative-sequences 03-DADA2d/representative_sequences.qza \
+  --o-denoising-stats 03-DADA2d/denoising_stats.qza \
+  --verbose 2>&1 | tee -a logs/03-DADA2/DADA2.stderrout
+```
+
+
+# P04. Export DADA2 results
+
+```{bash, eval=FALSE}
+qiime tools export --input-path 03-DADA2d/representative_sequences.qza --output-path 03-DADA2d/
+qiime tools export --input-path 03-DADA2d/denoising_stats.qza --output-path 03-DADA2d/
+qiime tools export --input-path 03-DADA2d/table.qza --output-path 03-DADA2d/
+biom convert -i 03-DADA2d/feature-table.biom -o 03-DADA2d/feature-table.tsv --to-tsv
+```
+
+# P05. Classify eASVs (Naive Bayes, V4–V5 region)
+
+```{bash, eval=FALSE}
+qiime feature-classifier classify-sklearn \
+  --i-classifier 515926gg2-classifier.qza \
+  --i-reads 03-DADA2d/representative_sequences.qza \
+  --o-classification 05-SILVA-classified/classification.qza
+```
+
+# P06. Taxonomy barplots
+
+Taxonomic assignment was performed using the SILVA reference database release 132 v.8 (Quast et al., 2013), clustered at 99% similarity
+
+```{bash, eval=FALSE}
+mkdir -p 06-SILVA.barplots
+qiime taxa barplot \
+  --i-table 03-DADA2d/table.qza \
+  --i-taxonomy 05-SILVA-classified/classification.qza \
+  --m-metadata-file alldata.tsv \
+  --o-visualization 06-SILVA.barplots/taxa-barplot.qzv
+```
+
+# P07. Build tree (SEPP)
+
+```{bash, eval=FALSE}
+qiime fragment-insertion sepp \
+  --i-representative-sequences 03-DADA2d/silva_rep_seqs_final.qza \
+  --i-reference-database sepp-refs-silva-13-8.qza \
+  --o-tree silva.asvs-tree.qza \
+  --o-placements silva.insertion-placements.qza \
+  --p-threads 5 \
+  --o-filtered-data 03-DADA2d/rep_seqs_final.qza
+```
+
+# References
+
+- Bolyen et al. 2019. QIIME 2: Reproducible, interactive, scalable, and extensible microbiome data science.  
+- QIIME 2 Tutorials — Atacama soils; PD mice (access versioned docs).  
+- Fuhrman et al. 2019. Fuhrman Lab 515F-926R 16S and 18S rRNA Gene Sequencing Protocol. DOI: 10.17504/protocols.io.vb7e2rn  
+- Callahan et al. DADA2 tutorial — https://benjjneb.github.io/dada2/tutorial.html
+-Martin, M. (2011). Cutadapt removes adapter sequences from high-throughput sequencing reads. EMBnet.journal, 17(1), pp. 10-12. doi:https://doi.org/10.14806/ej.17.1.200
