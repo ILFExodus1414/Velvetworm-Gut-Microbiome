@@ -1,0 +1,57 @@
+---
+title: "Velvet Worm Gut Microbiome: Relative Abundance Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Overview
+
+This script performs a detailed relative abundance analysis of velvet worm gut microbiomes, including bar plots at multiple taxonomic levels, LEfSe differential abundance, prevalence-abundance plots, and rarefaction curves.
+
+```{r load-libraries}
+library(phyloseq)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(microbiome)
+library(microbiomeutilities)
+library(ComplexHeatmap)
+library(ggpubr)
+library(DESeq2)
+library(microbiomeMarker)
+```
+
+```{r load-data}
+otu <- as.matrix(read.csv("silva.vw2.otu.csv", row.names = 1))
+tax <- as.matrix(read.csv("silva.tax.csv", row.names = 1))
+meta <- read.table("vwmeta2.csv", sep = ",", row.names = 1, header = TRUE)
+tree <- read_tree("silva.alldata.tree.nwk")
+
+ps <- phyloseq(otu_table(otu, taxa_are_rows = TRUE),
+               tax_table(tax),
+               sample_data(meta),
+               phy_tree(tree))
+
+ps <- prune_taxa(taxa_sums(ps) > 0, ps)
+```
+
+```{r genus-plot, fig.width=15, fig.height=20}
+ps_g <- tax_glom(ps, "Genus")
+ps_g_rel <- transform_sample_counts(ps_g, function(x) x / sum(x))
+
+plot_bar(ps_g_rel, fill = "Genus") +
+  geom_bar(aes(fill = Genus), stat = "identity", position = "stack") +
+  facet_wrap(~ Site, scales = "free") +
+  theme_minimal() +
+  labs(title = "Relative Abundance at Genus Level", y = "Relative Abundance", x = "Samples") +
+  theme(
+  legend.position = "bottom",
+  legend.box = "horizontal",
+  legend.key.size = unit(0.3, "cm"),
+    legend.text = element_text(size = 8),
+    axis.text.y = element_text(size = 8)) +
+  guides(fill = guide_legend(ncol = 8))
+```
