@@ -1,0 +1,162 @@
+---
+title: "VW_beta_diversity"
+author: "ILF"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script compares and visualizes beta diversity metrics (Euclidean distances on CLR-transformed data: accounts for compositionality;UniFrac distances incorporates phylogenetic information) from a 16S rRNA dataset of gut microbiomes in from velvet worms, using a phyloseq object and plotting with ggplot2.
+
+The goal is to assess whether and how the microbial communities differ by site.
+
+```{r setup-2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+##1 : Load Libraries
+```{r}
+library(vegan)
+library(phyloseq)
+library(cowplot)
+library(viridis)
+library(ggrepel)
+library(ggplot2)
+```
+
+##2 : Load and Format Data
+
+```{r load-data}
+otuv = read.csv("silva.vw2.otu.csv", sep = ",", row.names = 1)
+otu = as.matrix(otuv)
+
+vtax = read.csv("silva.tax.csv", sep = ",", row.names = 1)
+tax = as.matrix(vtax)
+
+vmet = read.table("vwmeta2.csv", sep = ",", row.names = 1, header = TRUE)
+tree = read_tree("silva.alldata.tree.nwk")
+
+otu <- otu_table(otu, taxa_are_rows = TRUE)
+tax <- tax_table(tax)
+vfmet <- sample_data(vmet)
+```
+
+OTU table (silva.vw.otu.csv): contains counts of ASVs per sample.
+
+Taxonomy (silva.tax.csv): assigns taxonomic identity to each OTU.
+
+Metadata (vwmeta2.csv): sample-level metadata, including a "Site" field.
+
+Tree: phylogenetic relationships between taxa.
+
+
+
+##: 3 : Build phyloseq object and prune data
+```{r load-data-2}
+Q = phyloseq(otu, tax, vfmet, tree)
+Q <- prune_taxa(taxa_sums(Q) > 0, Q)
+```
+
+Wraps the data into a unified object Q for downstream analysis.
+
+Removes OTUs not present in any sample (zero counts across all samples).
+
+## 4 : Compute for Two Types of Beta Diversity
+
+A. Euclidean on CLR-transformed data
+CLR corrects for compositional bias in sequencing data
+
+```{r}
+q <- Q
+q_clr <- microbiome::transform(q, "clr")
+clr_dist_matrix1 <- phyloseq::distance(q_clr, method="euclidean")
+ord_euc <- ordinate(q_clr, method="MDS", distance="euclidean")
+
+```
+B. UniFrac on relative abundance data
+UniFrac considers both community structure and phylogeny
+
+```{r}
+q_rel_abund = transform_sample_counts(q, function(x) x / sum(x))
+unifrac_dist_matrix <- phyloseq::distance(q_rel_abund, method="unifrac")
+ord_unifrac <- ordinate(q_rel_abund, method="PCoA", distance="unifrac")
+
+```
+
+## 5 :Plot the Ordination Results
+
+Two ordination plots:
+
+p1: Euclidean-CLR
+
+p2: UniFrac
+
+Each point = an individual velvet worm gut sample
+Color = Site
+```{r}
+p1 <- plot_ordination(q_clr, ord_euc, color="Site") + 
+  geom_point(size=2) +
+  theme_minimal() + 
+  scale_fill_manual(values=viridis(4)) + 
+  ggtitle("Sites at ASV level: Euclidean-CLR") + 
+  theme(
+    text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right",
+    legend.title = element_blank()
+  ) 
+# Generate UniFrac distance matrix
+unifrac_dist_matrix <- phyloseq::distance(q_rel_abund, method="unifrac")
+
+# Ordination for UniFrac
+ord_unifrac <- ordinate(q_rel_abund, method="PCoA", distance="unifrac")
+
+# Plot ordination for UniFrac
+p2 <- plot_ordination(q_rel_abund, ord_unifrac, color="Site") + 
+  geom_point(size=2) +
+  theme_minimal() + 
+  scale_fill_manual(values=viridis(4)) + 
+  ggtitle("Sites at ASV level: UniFrac") + 
+  theme(
+    text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right",
+    legend.title = element_blank()
+  ) 
+```
+
+
+## 6: Combine the two plots
+```{r}
+combined_plot <- plot_grid(p1, p2, labels = "AUTO", ncol = 1)
+combined_plot
+```
+
+## 7 Save the final plot 
+
+```{r}
+
+ggsave("Sites_Euclidean_CLR_and_UniFrac.pdf", combined_plot, width=7, height=9, units="in", dpi=300)
+
+
+```
+
+
+Summary: 
+
+Key Concepts Involved
+Beta diversity: Measures differences in microbial composition between samples
+
+Ordination: Visual technique to simplify complex distance matrices (e.g., PCoA)
+
+CLR: A compositional data transformation
+
+UniFrac: Phylogenetic beta diversity metric (unweighted or weighted)
+
+Main Insight You Get from This Script
+Whether the gut microbial community composition of velvet worms is structured by site — and whether those differences are driven by relative abundances (CLR) or phylogenetic differences (UniFrac).
