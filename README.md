@@ -6,7 +6,7 @@ Author: Imelda L. Forteza,Ph.D.
 It contains the scripts and analysis outputs from a 16S rRNA-based microbial community study of *Euperipatoides rowelli*, a saproxylic velvet worm inhabiting deadwood microhabitats in Australian forest refugia.
 
 ## 📁 Repository Structure
-- Metadata and manifest templates : MIxS-compliant metadata; manifest
+- Metadata and manifest templates : MIxS-compliant metadata
 - Shell and R Markdown scripts for alpha/beta diversity, core microbiome, and differential abundance (in separate files).QIIME2-based preprocessing of V4–V5 16S/18S reads
 - Analytical outputs (figures, tables) are excluded here but included in the manuscript submission
 -`.gitignore` – File exclusions for local use
