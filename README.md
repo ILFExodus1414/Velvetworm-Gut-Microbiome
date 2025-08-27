@@ -5,7 +5,7 @@ Author: Imelda L. Forteza,Ph.D.
 
 > **Note:** This repository is currently private and will be made public upon acceptance of the associated manuscript. A Zenodo DOI will be issued at that time for reproducibility and citation.
 
-##Repository Overview
+## Repository Overview
 
 - QIIME2-based preprocessing of V4–V5 16S/18S reads
 - Metadata and manifest templates
@@ -35,7 +35,7 @@ This repository contains shell + QIIME2 commands (also embedded in an R Markdown
 - RStudio (optional) if using the `.Rmd` version
 - A trained Naive Bayes classifier for your target region (e.g., `515926gg2-classifier.qza`)
 
-Activate your conda env (example):
+## Activate your conda env (example):
 ```bash
 conda activate qiime2-2023.9
 ```
@@ -60,19 +60,6 @@ conda activate qiime2-2023.9
 
 
 ---
-
-## R Markdown Usage
-
-- Prefer bash chunks:  
-  ```
-  ```{bash}
-  # your shell commands here
-  ```
-  ```
-- If you must run shell from an R chunk, use `system()` in R:
-  ```r
-  system("cutadapt ...")
-  ```
 
 **Common issue:** “unexpected token” errors occur when pasting bash into an `r` chunk. Use a `{bash}` chunk or `system()`.
 
