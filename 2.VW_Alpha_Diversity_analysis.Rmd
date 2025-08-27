@@ -1,0 +1,181 @@
+---
+title: "Alpha Diversity Analysis of Velvet Worm Gut Microbiome"
+author: "ILF"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+This script calculates and visualizes alpha diversity metrics (Observed richness, Shannon index, and Faith’s Phylogenetic Diversity) from a 16S rRNA dataset of gut microbiomes in from velvet worms, using a phyloseq object and plotting with ggplot2.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+##1 : Load Libraries
+
+```{r load-libraries}
+library("ggplot2")
+library("ape")
+library("plyr")
+library("vegan")
+library("RColorBrewer")
+library("reshape2")
+library("scales")
+library("microbiome")
+library("dplyr")
+library("phyloseq")
+library("data.table")
+library("picante")
+library("knitr")
+library("DESeq2")
+library("ggrepel")
+library("ggpubr")
+library("viridis")
+library("grid")
+library("tidyr")
+set.seed(500)
+```
+
+##2 : Load and Format Data
+
+```{r load-data}
+otuv = read.csv("silva.vw2.otu.csv", sep = ",", row.names = 1)
+otu = as.matrix(otuv)
+
+vtax = read.csv("silva.tax.csv", sep = ",", row.names = 1)
+tax = as.matrix(vtax)
+
+vmet = read.table("vwmeta2.csv", sep = ",", row.names = 1, header = TRUE)
+tree = read_tree("silva.alldata.tree.nwk")
+
+otu <- otu_table(otu, taxa_are_rows = TRUE)
+tax <- tax_table(tax)
+vfmet <- sample_data(vmet)
+```
+
+OTU table (silva.vw.otu.csv): contains counts of ASVs per sample.
+
+Taxonomy (silva.tax.csv): assigns taxonomic identity to each OTU.
+
+Metadata (vwmeta2.csv): sample-level metadata, including a "Site" field.
+
+Tree: phylogenetic relationships between taxa (for Faith's PD).
+
+
+##: 3 : Build phyloseq object and prune data
+```{r load-data-2}
+Q = phyloseq(otu, tax, vfmet, tree)
+Q <- prune_taxa(taxa_sums(Q) > 0, Q)
+```
+
+Wraps the data into a unified object Q for downstream analysis.
+
+Removes OTUs not present in any sample (zero counts across all samples).
+
+
+
+
+
+
+## 4: Prepare for Faith's Phylogenetic Diversity
+
+```{r alpha-diversity}
+otu_table_Q <- as.data.frame(otu_table(Q))
+metadata_table_Q <- as.data.frame(sample_data(Q))
+phy_tree_data <- phy_tree(Q)
+```
+
+Extracts tables from phyloseq object for compatibility with picante::pd().
+
+## 5 : Calculate Alpha Diversity
+```{r alpha-diversity-2}
+Q.pd <- pd(t(otu_table_Q), phy_tree_data, include.root = FALSE)
+```
+
+Calculates Faith’s Phylogenetic Diversity (PD) using the rooted phylogeny.
+
+
+```{r alpha-diversity-3}
+adiv <- data.frame(
+  "Observed" = phyloseq::estimate_richness(Q, measures = "Observed"),
+  "Shannon" = phyloseq::estimate_richness(Q, measures = "Shannon"),
+  "PD" = Q.pd,
+  "Site" = metadata_table_Q$Site
+)
+write.csv(adiv, "host.adiv_results.csv", row.names = FALSE)
+```
+
+Compiles alpha diversity values into one data frame with grouping info (Site).
+
+And saves alpha diversity results to CSV.
+
+## 6: Average PD columns
+```{r alpha-diversity-4}
+adiv$PD <- rowMeans(adiv[, c("PD.PD", "PD.SR")], na.rm = TRUE)
+adiv <- adiv[, !names(adiv) %in% c("PD.PD", "PD.SR")]
+```
+
+pd() returns both PD and Species Richness; here you average both PD values and remove the originals.
+
+## 7: Compute p-values
+
+```{r alpha-plot}
+p_values <- adiv %>%
+  gather(key = metric, value = value, c("Observed", "Shannon", "PD")) %>%
+  mutate(metric = factor(metric, levels = c("Observed", "Shannon", "PD"))) %>%
+  group_by(metric) %>%
+  summarise(p.value = kruskal.test(value ~ Site)$p.value)
+```
+
+Uses Kruskal–Wallis test to assess group-level differences per alpha metric.
+
+## 8: Plot Alpha Diversity
+```{r alpha-plot-2}
+p1 <- adiv %>%
+  gather(key = metric, value = value, c("Observed", "Shannon", "PD")) %>%
+  mutate(metric = factor(metric, levels = c("Observed", "Shannon", "PD"))) %>%
+  ggplot(aes(x = Site, y = value, color = Site)) +
+  geom_jitter(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8), size = 2, alpha = 0.7) +
+  facet_wrap(~ metric, scales = "free") +
+  theme_minimal() +
+  scale_color_viridis(discrete = TRUE) +
+  geom_text(data = p_values, aes(x = Inf, y = Inf, label = sprintf("p = %.2f", p.value)),
+            hjust = 1.1, vjust = 1.5, size = 4, color = "black", check_overlap = TRUE)
+
+print(p1)
+```
+
+jitter plot shows per-sample alpha diversity by group (Site), faceted by metric (Observed, Shannon, PD).
+
+Colorblind-friendly colors via viridis.
+
+Adds horizontal lines and p-value annotations for clarity.
+
+
+## 9 : Export Plot
+```{r}
+pdf("vw_colorblind_friendly2.pdf", width = 7, height = 9)
+print(p1)
+dev.off()
+tiff("Fig.silva.Alpha.tiff", width = 7, height = 9, units = "in", res = 300, compression = "lzw")
+print(p1)
+dev.off()
+
+```
+
+Saves the plot in both PDF and TIFF (300 dpi) for publication-ready export.
+
+
+
+
+Summary:
+Constructs a cleaned phyloseq object,
+
+Computes Observed richness, Shannon, and Faith’s PD,
+
+Performs Kruskal–Wallis tests across site groups (Site),
+
+Plots the diversity metrics using ggplot2 with viridis palette,
+
+Exports a figure in TIFF and PDF for inclusion in a manuscript or report.
+
