@@ -1,4 +1,4 @@
-# QIIME2 Pre-processing & Analysis (V4–V5, 16S rRNA)
+## QIIME2 Pre-processing & Analysis (V4–V5, 16S rRNA)
 
 Author: Imelda L. Forteza,Ph.D.  
 
