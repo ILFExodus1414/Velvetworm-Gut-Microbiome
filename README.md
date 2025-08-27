@@ -1,18 +1,26 @@
-## QIIME2 Pre-processing & Analysis (V4–V5, 16S rRNA)
-
+## Gut Microbiome of Velvet Worms (_Euperipatoides rowelli_)
 Author: Imelda L. Forteza,Ph.D.  
 
 
 > **Note:** This repository is currently private and will be made public upon acceptance of the associated manuscript. A Zenodo DOI will be issued at that time for reproducibility and citation.
+It contains the scripts and analysis outputs from a 16S rRNA-based microbial community study of *Euperipatoides rowelli*, a saproxylic velvet worm inhabiting deadwood microhabitats in Australian forest refugia.
 
-## Repository Overview
-
-- QIIME2-based preprocessing of V4–V5 16S/18S reads
-- Metadata and manifest templates
-- Shell and R Markdown scripts for alpha/beta diversity, core microbiome, and differential abundance (in separate files)
+## 📁 Repository Structure
+- Metadata and manifest templates : MIxS-compliant metadata; manifest
+- Shell and R Markdown scripts for alpha/beta diversity, core microbiome, and differential abundance (in separate files).QIIME2-based preprocessing of V4–V5 16S/18S reads
 - Analytical outputs (figures, tables) are excluded here but included in the manuscript submission
+-`.gitignore` – File exclusions for local use
+- `LICENSE` – Reuse terms (e.g., MIT or CC-BY)
+- `zenodo.json` – Metadata for DOI generation (optional)
 
 ---
+## 🧪 Analysis  Structure
+
+- Preprocessing: demultiplexing, primer trimming, and quality filtering via QIIME2
+- Relative Abundance: Phylum to Genus level summaries
+- Alpha & Beta Diversity: Shannon, Faith PD, PCoA, PERMANOVA (R: `phyloseq`, `vegan`)
+- Core Microbiome: detection thresholds and shared genera visualized via UpSet plots
+- Differential Abundance: DESeq2 pairwise tests across forest site
 
 ## Overview
 This repository contains shell + QIIME2 commands (also embedded in an R Markdown) to:
@@ -26,10 +34,10 @@ This repository contains shell + QIIME2 commands (also embedded in an R Markdown
 
 ---
 
-## Requirements
+## Dependencies
 
 - Linux/macOS shell with `bash`
-- QIIME2 (e.g., 2023.9) with plugins: `dada2`, `feature-classifier`, `fragment-insertion`, `taxa`, `tools`, `demux`
+- QIIME2 v 2023.9 with plugins: `dada2`, `feature-classifier`, `fragment-insertion`, `taxa`, `tools`, `demux`
 - `cutadapt` (>= 4.x recommended)
 - **Optional:** `bbmap` (for `bbsplit.sh`), `biom-format` (for `biom convert`)
 - RStudio (optional) if using the `.Rmd` version
@@ -92,9 +100,15 @@ conda activate qiime2-2023.9
 ---
 
 
-## To cite this workflow and analysis:
+## To cite this workflow and analysis: 
+If you use this repository or build upon its scripts, please cite:
 
 Forteza, I.L., et al. (2025). Gut Microbiome of Velvet Worms Across Deadwood Microhabitats in Australian Forest Refugia. Zenodo. [DOI to be assigned upon publication]
+
+DOI badge:
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.xxxxxxx.svg)](https://doi.org/10.5281/zenodo.xxxxxxx)
+
 
 ## FAIR & Reproducibility Notes
 
