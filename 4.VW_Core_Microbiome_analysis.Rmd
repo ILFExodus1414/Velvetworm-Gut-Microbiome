@@ -1,0 +1,159 @@
+---
+title: "Core Microbiome Analysis of Velvet Worm Gut Samples"
+author: "Imelda Forteza"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    theme: readable
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width=10, fig.height=7)
+```
+
+# Introduction
+
+This analysis identifies and visualizes the core microbiome of velvet worm (*Euperipatoides rowelli*) gut samples collected across multiple forest sites. 
+Core taxa are defined as those present in ≥50% of samples within a site and with ≥0.1% relative abundance at the **Phylum level**. 
+Shared and unique taxa are visualized using **UpSet plots**, which are preferable to Venn diagrams for multi-group comparisons.
+
+# Load Required Libraries
+
+```{r libraries}
+library(phyloseq)
+library(microbiome)
+library(microbiomeutilities)
+library(dplyr)
+library(ComplexUpset)
+library(ggplot2)
+library(viridis)
+library(readr)
+```
+
+# Load and Format Data
+
+```{r load-data}
+otu <- as.matrix(read.csv("silva.vw2.otu.csv", row.names = 1))
+tax <- as.matrix(read.csv("silva.tax.csv", row.names = 1))
+meta <- read.table("vwmeta2.csv", sep = ",", row.names = 1, header = TRUE)
+
+ps <- phyloseq(
+  otu_table(otu, taxa_are_rows = TRUE),
+  tax_table(tax),
+  sample_data(meta)
+)
+```
+
+# Preprocess and Transform Data
+
+```{r preprocess}
+# Agglomerate to Phylum level
+ps_phylum <- tax_glom(ps, "Phylum")
+
+# Transform to relative abundance
+ps_rel <- microbiome::transform(ps_phylum, "compositional")
+
+# Format taxonomy for better readability
+ps_rel <- format_to_besthit(ps_rel)
+```
+
+# Identify Core Microbiota Per Site
+
+```{r identify-core}
+sites <- unique(as.character(meta$Site))
+list_core <- list()
+
+for (site in sites) {
+  ps_site <- subset_samples(ps_rel, Site == site)
+  core_members_site <- core_members(ps_site, detection = 0.001, prevalence = 0.5)
+  list_core[[site]] <- core_members_site
+}
+```
+
+# Build Presence/Absence Matrix
+
+```{r presence-absence}
+all_taxa <- unique(unlist(list_core))
+
+core_matrix <- sapply(list_core, function(taxa) {
+  as.integer(all_taxa %in% taxa)
+})
+rownames(core_matrix) <- all_taxa
+colnames(core_matrix) <- sites
+
+write.csv(core_matrix, "core_genus_taxa2_presence_matrix.csv", row.names = TRUE)
+```
+
+# Format Matrix for ComplexUpset Plot
+
+```{r format-upset}
+core_df <- as.data.frame(core_matrix)
+core_df$Taxon <- rownames(core_df)
+
+core_df <- core_df %>% 
+  mutate(across(-Taxon, ~ . == 1))
+
+shared_taxa <- Reduce(intersect, list_core)
+core_df$SharedAllSites <- core_df$Taxon %in% shared_taxa
+
+core_df$SiteTag <- apply(core_df[, sites], 1, function(row) {
+  present_sites <- names(which(row))
+  if (length(present_sites) > 0) present_sites[1] else NA
+})
+
+site_colors <- setNames(viridis(length(sites), option = "D"), sites)
+```
+
+# Plot Core Microbiome with ComplexUpset
+
+```{r plot-upset}
+p <- upset(
+  core_df,
+  intersect = sites,
+  name = "Core Taxa",
+  min_size = 1,
+  sort_intersections_by = "cardinality",
+  width_ratio = 0.25,
+  base_annotations = list(
+    'Intersection size' = (
+      intersection_size(
+        aes(fill = SiteTag),
+        text = list(size = 3)
+      ) +
+      scale_fill_manual(
+        name = "Representative Site",
+        values = site_colors,
+        na.translate = FALSE
+      )
+    )
+  )
+) +
+  labs(
+    title = "Core Microbial Genera Shared Across Sites (Phylum Level)",
+    subtitle = "Top bars colored by one representative site in each intersection",
+    caption = "Each dot = site. Each column = site combination.\nTop bars = number of shared core taxa.\nColors denote a representative site for easier tracking."
+  ) +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    plot.caption = element_text(size = 10),
+    axis.text.x = element_text(size = 12, angle = 45, hjust = 1, face = "bold"),
+    axis.text.y = element_text(size = 12, face = "bold"),
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(size = 10),
+    strip.text.y = element_text(size = 12, face = "bold")
+  )
+
+p
+```
+
+# Conclusion
+
+This workflow enables identification of shared and site-specific core microbial taxa in velvet worm gut samples, improving ecological understanding of host-microbe interactions across microhabitats.
