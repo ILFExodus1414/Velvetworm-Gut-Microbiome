@@ -1,0 +1,112 @@
+
+---
+title: "Differential Abundance Analysis of Velvet Worm Gut Microbiome"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Introduction
+
+This script performs DESeq2-based differential abundance analysis of velvet worm gut microbiome ASVs across different forest sites. We focus on:
+
+1. Identifying differentially abundant genera across sites.
+2. Visualizing these results with volcano plots.
+3. Highlighting the most significant genera per site and per comparison.
+
+## Load Required Libraries
+
+```{r}
+library(phyloseq)
+library(DESeq2)
+library(ggplot2)
+library(ggrepel)
+library(viridis)
+library(dplyr)
+library(tibble)
+library(ape)
+```
+
+## Load and Prepare Data
+
+```{r}
+otu <- as.matrix(read.csv("silva.vw2.otu.csv", row.names = 1))
+tax <- as.matrix(read.csv("silva.tax.csv", row.names = 1))
+meta <- read.csv("vwmeta2.csv", row.names = 1)
+tree <- read_tree("silva.alldata.tree.nwk")
+
+ps <- phyloseq(
+  otu_table(otu, taxa_are_rows = TRUE),
+  tax_table(tax),
+  sample_data(meta),
+  phy_tree(tree)
+)
+
+ps <- prune_taxa(taxa_sums(ps) > 0, ps)
+otu_table(ps) <- otu_table(ps) + 1  # Add pseudocount
+```
+
+## DESeq2 Analysis by Site
+
+```{r}
+dds <- phyloseq_to_deseq2(ps, ~ Site)
+dds <- DESeq(dds, test = "Wald", fitType = "parametric")
+```
+
+## Extract and Annotate Results
+
+```{r}
+res <- results(dds, cooksCutoff = FALSE)
+alpha <- 0.05
+sigtab <- res[which(res$padj < alpha), ]
+sigtab <- sigtab[complete.cases(sigtab), ]
+
+tax_info <- as.data.frame(tax_table(ps))
+common_taxa <- intersect(rownames(sigtab), rownames(tax_info))
+sigtab_combined <- cbind(as.data.frame(sigtab[common_taxa, ]), tax_info[common_taxa, ])
+write.csv(sigtab_combined, "vw_site_DESeq_results.csv")
+```
+
+## Volcano Plot (Top Phyla)
+
+```{r}
+top_phyla <- sigtab_combined %>%
+  group_by(Phylum) %>%
+  summarise(mean_logFC = mean(log2FoldChange, na.rm = TRUE)) %>%
+  arrange(desc(mean_logFC)) %>%
+  head(10)
+
+subset_data <- filter(sigtab_combined, Phylum %in% top_phyla$Phylum)
+subset_data <- subset_data %>%
+  mutate(
+    relative_abundance = case_when(
+      log2FoldChange > 1 ~ "High",
+      log2FoldChange < -1 ~ "Low",
+      TRUE ~ "Not significant"
+    ),
+    neg_log10_padj = -log10(padj),
+    Taxon = ifelse(is.na(Genus), rownames(subset_data), as.character(Genus))
+  )
+
+volcano_plot <- ggplot(subset_data, aes(x = log2FoldChange, y = neg_log10_padj, fill = relative_abundance)) +
+  geom_point(shape = 21, size = 3, alpha = 0.8, color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "red") +
+  scale_fill_manual(values = c("High" = "red", "Low" = "blue", "Not significant" = "grey80")) +
+  theme_minimal() +
+  labs(x = "Log2 Fold Change", y = "-Log10 Adjusted p-value") +
+  geom_text_repel(aes(label = Taxon), size = 3, max.overlaps = 10)
+
+print(volcano_plot)
+```
+
+## Export Plot
+
+```{r}
+ggsave("VW_volcano_plot_relative_abundance.pdf", volcano_plot, width = 9, height = 6)
+```
+
+## Conclusion
+
+This DESeq2-based approach highlights microbial genera that are significantly more or less abundant across velvet worm sites. Volcano plots facilitate interpretation of these differences, aiding understanding of microbiome-environment interactions.
