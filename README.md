@@ -41,7 +41,7 @@ This repository contains shell + QIIME2 commands (also embedded in an R Markdown
 - `cutadapt` (>= 4.x recommended)
 - **Optional:** `bbmap` (for `bbsplit.sh`), `biom-format` (for `biom convert`)
 - RStudio (optional) if using the `.Rmd` version
-- A trained Naive Bayes classifier for your target region (e.g., `515926gg2-classifier.qza`)
+- A trained Naive Bayes classifier for your target region (e.g., `515926silva-classifier.qza`)
 
 ## Activate your conda env (example):
 ```bash
