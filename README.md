@@ -103,7 +103,7 @@ conda activate qiime2-2023.9
 ## To cite this workflow and analysis: 
 If you use this repository or build upon its scripts, please cite:
 
-Forteza, I.L., et al. (2025). Gut microbial communities of velvet worm Euperipatoides rowelli (Onychophora) 
+Forteza, I.L., et al. (2025). Gut microbial communities of velvet worm (_Euperipatoides rowelli_) (Onychophora) 
 across deadwood microhabitats in southeastern Australia. [DOI to be assigned upon publication]
 
 DOI badge:
