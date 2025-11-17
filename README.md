@@ -108,7 +108,7 @@ across deadwood microhabitats in southeastern Australia. [doi: https://doi.org/1
 
 DOI badge:
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.xxxxxxx.svg)](https://doi.org/10.5281/zenodo.xxxxxxx)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17626832.svg)](https://doi.org/10.5281/zenodo.17626832)
 
 
 ## FAIR & Reproducibility Notes
