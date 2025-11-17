@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Velvetworm-gutmicrobiome: R Analysis Code for the Velvet Worm Gut Microbiome Study"
+version: "v1.0.1"
+date-released: "2025-11-17"
+
+authors:
+  - family-names: "Forteza"
+    given-names: "Imelda"
+    orcid: "https://orcid.org/0000-0000-0000-0000"   # <-- replace with your real ORCID if you'd like
+
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.17626832"
+
+repository-code: "https://github.com/ILFExodus1414/velvetworm-gutmicrobiome"
+
+abstract: >
+  This repository contains the full R scripts and workflow used for the microbiome
+  analysis of Euperipatoides rowelli gut samples across the Tallaganda forest refugia
+  gradient. Included scripts generate alpha- and beta-diversity metrics, DESeq2-based
+  differential abundance analyses, core microbiome assessments, prevalence-abundance
+  plots, and publication-ready figures. The code accompanies the associated velvet
+  worm gut microbiome manuscript and supports reproducibility and reuse.
